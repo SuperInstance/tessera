@@ -1,0 +1,9 @@
+{
+  "name": "@tessera/seed-wal-edl",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test wal-edl.test.ts",
+    "demo": "node demo.ts"
+  }
+}
