@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>chiaro-frame · browser harness</title>
+<style>
+  :root { color-scheme: dark; }
+  body {
+    background: #0b0e0c; color: #9fef8e;
+    font-family: ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
+    margin: 2rem; line-height: 1.15;
+  }
+  h1 { font-size: 1rem; color: #5a8a52; font-weight: normal; }
+  pre { font-size: 13px; letter-spacing: 0.06em; }
+  code { color: #ffd866; }
+  .dim { color: #44543f; }
+</style>
+</head>
+<body>
+<h1>chiaro-frame · same seed, browser side of the contract</h1>
+<pre id="frame">…</pre>
+<p>hash: <code id="hash">…</code> <span class="dim">(FNV-1a 32 of canonical string)</span></p>
+<script src="frame.js"></script>
+<script>
+  // Render synchronously; expose the result for pw-test.js to compare
+  // against the node-side render of the same frame.js.
+  var f = ChiaroFrame.renderFrame();
+  document.getElementById('frame').textContent = f.text;
+  document.getElementById('hash').textContent = f.hash;
+  window.__FRAME_RESULT__ = { hash: f.hash, text: f.text, cols: f.cols, rows: f.rows };
+</script>
+</body>
+</html>

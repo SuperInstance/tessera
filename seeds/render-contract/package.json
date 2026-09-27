@@ -1,0 +1,9 @@
+{
+  "name": "@tessera/seed-render-contract",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node test.ts",
+    "test:browser": "node pw-test.js"
+  }
+}
