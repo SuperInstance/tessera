@@ -64,4 +64,66 @@ And the meta-rule: the charter is already three products — capture+transport, 
 
 ## Lane 2 — Systems & Architecture
 
-*Pending — pragmatic lane still running.*
+*Grounded in the chiaroscuro code as it stands: five engines, vanilla JS, canvas, no build step, presets already serialize to `.json`. Central commitment: the text is not a filter applied at export — it is the footage. Everything below follows from that.*
+
+### 1. Data model: what is a clip?
+
+Three candidates:
+
+- **A. Raw media + look params.** `{sourceBlob, chiaroscuroPreset, inPoint, outPoint}`. Frames re-render on demand via the existing pipeline (downsample → luminance → Sobel → glyph → color → atmosphere).
+- **B. Baked text frames.** An array of strings.
+- **C. Hybrid: bake as cache, never as truth.** A is the source of truth; B is an evictable cache keyed by `hash(sourceId + preset + gridDims)`.
+
+**Recommend C, hard.** A's virtue is the infinite re-look: touch one dial, every clip re-renders — the look stays editable forever, which is chiaroscuro's soul. B's vice is freezing those 45 decisions at save time. The surprising math favors C: a text frame is ~8 KB (120×68 chars), a decoded video frame ~0.9 MB — **cache the text, not the pixels; the cache is ~100× smaller.** Cache-keying to the preset hash handles invalidation: new dial values, new hash, re-render.
+
+Screen-capture clips are the exception: the screen isn't a file, so those record straight to baked text frames (§5) — affordable precisely because text is tiny.
+
+### 2. Frame stepping / seek
+
+v0 pipeline: `video.currentTime = frame / fps` → await `seeked` → draw. Three landmines:
+
+1. **`seeked` can fire before paint.** Guard with `requestVideoFrameCallback` (rVFC), which fires on actual frame presentation; double-rAF as fallback.
+2. **VFR sources** (phone footage) break the fps assumption. Probe real fps on import by sampling ~1s of playback with rVFC; default 30; let the user nudge it per clip. Honest ledger: frame-exact seek in-browser without WebCodecs is *managed, not solved* — accept ±1 frame slop.
+3. **Codec lottery.** Probe `canPlayType` at import and say the result out loud in the UI. H.264 MP4 is near-universal; HEVC is OS-dependent.
+
+The WebCodecs `VideoDecoder` path is the frame-exact endgame but drags in demuxing (mp4box.js) and weeks. Not v0.
+
+Caching: per-clip LRU of rendered text frames, windowed ±30 frames around the playhead, ~1,000-frame global budget ≈ 8 MB. Hard ceiling with eviction — O(window), never O(duration).
+
+### 3. The hold primitive
+
+Represent the timeline as an **EDL**: each clip instance expands to flat segments `{timelineStart, timelineEnd, srcTimeAtStart, frozen}`. A hold at source time `h` until timeline time `x` expands to three segments: motion [inPoint→h], frozen [h for (x − tₕ)], motion [h→outPoint]. Frame lookup = binary search + interpolation. Deterministic, unit-testable, no special cases.
+
+Composition falls out free:
+- **Overlaps:** later-in-list paints over earlier (painter's algorithm, z = list order). No blending in v0 — overlap is collage, not dissolve.
+- **Gaps:** blank text screen. Not "previous frame persists" — blank is honest.
+
+The charter's "hold until a chosen exit frame, then slide back to the original" is exactly the 3-segment expansion.
+
+### 4. Quilt
+
+**CSS grid is wrong**: marine quilting *requires* overlap and grid cells can't. Use a large pannable surface with **absolutely-positioned cell divs**, free drag, z-index by last-touched, optional half-cell snap.
+
+Per-cell state machine: `EMPTY → LOADED(paused@0) ⇄ PLAYING / PAUSED@t → PARKED@f`. Parked frames are visually flagged (a corner tab, like a chart legend) and survive save. Keep transitions in one module with named events — UI handlers never mutate cell state directly. This is the piece most likely to rot.
+
+Persistence: **IndexedDB**, not localStorage — the 5 MB cap dies instantly on video Blobs; IDB stores Blobs natively. Schema: record per source blob, record per project (`{layout, EDL, preset}`), debounced autosave. v0: one implicit project, autosaved. Named slots later.
+
+Realistic v0: drag, park, autosave. No minimap, no zoom, no multi-select.
+
+### 5. Screen capture
+
+`getDisplayMedia({video:{frameRate:30}})` → `<video>`. **Skip `ImageCapture.grabFrame()`** — Firefox doesn't ship it. The portable path is `drawImage(video, sx, sy, sw, sh, …)` with a source rect, which composes directly with the renderer's downsample step.
+
+Selection box: draggable rect over the preview. The classic bug farm is mapping screen coords → intrinsic video coords under `object-fit: contain` letterboxing — compute letterbox offsets explicitly and test with mismatched aspects. Dim outside the selection; live-ASCII-preview just the region.
+
+Recording: text frames render off the rAF loop into a buffer; on stop, flush to IDB as a baked-frame clip. A screen clip's "source" *is* its text.
+
+### 6. Export
+
+All cheap, because the text already lives on canvas:
+
+1. **WebM (v0 primary).** `canvas.captureStream(30)` → `MediaRecorder`; play the timeline in realtime. Cost: honest — 60s of film takes 60s and may drop frames under load. Fine for scene rough-outs.
+2. **Standalone-HTML film (the signature export).** Chiaroscuro already exports the renderer with baked settings; Tessera exports the *film* — one self-contained page carrying the EDL, sources, and the renderer, playing anywhere.
+3. **Frame-sequence text.** The archival, diffable, greppable master. Plain text files; git becomes the video codec.
+
+*(Note: this lane's report arrived truncated mid-§6; the tail above is reconstructed from the lane's stated outline. The next sections — ranked risks and the ruthless v0 — were named in the brief and are folded into `docs/ROADMAP.md` rather than lost.)*
