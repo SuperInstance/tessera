@@ -1,0 +1,15 @@
+# .quilt/links.yml — the Reader's Fold manifest (jev-quilt Law 6).
+# This repo carries NO verdicts about its neighbors — only content-addressed
+# pointers each reader folds under its own weights. Edit this file; never edit
+# the generated block in README.md by hand.
+
+repo: tessera
+family: quilt
+
+consumes:
+  - repo: chiaroscuro
+    what: the renderer core — four real-time webcam-to-text engines (Mirror/Sculptor/Studio/Director) that tessera's video-quilt inherits for turning a live frame into text
+
+related:
+  - repo: pong-quilt
+    why: sibling "watch it think, honestly" teaching artifact
